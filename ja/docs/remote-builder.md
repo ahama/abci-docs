@@ -1,121 +1,117 @@
-# Singularity Remote Builder 利用手順
+# ABCI Singularity エンドポイント
 
 ## 概要
 
-ABCI では、Singularity Enterprise が提供するサービスを利用することができます。このサービスを利用すれば、通常はシステム管理者の権限が必要なコンテナイメージの作成を、一般利用者でも行うことができます。また、作成したコンテナをライブラリに保存し、他の ABCI 利用者と共有することも可能です。
-これらのサービスは ABCI のシステム内で稼働しているため、インターネットに利用者のデータを持ち出すことなく、ABCI の内部でサービスを利用することが可能です。
-ここでは、Singularity Enterprise の以下サービスの利用方法を説明します。
+ABCI では、Singularity で使うコンテナイメージをリモートビルドするためのサービスである Remote Builder と、作成したコンテナイメージを保管するための Container Library サービスを提供しています。
 
-* Remote Builder
-* Key service
-* Library
+!!! tip
+    SingularityPRO 3.5 を使って、[ローカルビルドで作成](09.md#build-a-singularity-image)することもできます。
 
-## アクセストークンの準備
+!!! note
+    ABCI 内部向けのサービスであり、外部から直接アクセスすることはできません。
 
-### Singularity Pro の利用準備
+## Remote Builder の使い方
 
-以下の説明では、Singularity Pro の使用を前提とします。singularity pro を使用するためには、 environment module で ``singularitypro`` をロードします。
+### モジュールのロード
+
+コンテナイメージのリモートビルドやアップロードを行うには、SingularityPRO を使用します。singularitypro/3.5 モジュールをロードしてください。
 
 ```
 [username@es1 ~]$ module load singularitypro/3.5
-[username@es1 ~]$ singularity --version
-SingularityPRO version 3.5-2.el7
 ```
 
-### アクセストークンの発行
+!!! note
+    Singularity 2.6.1 では、リモートビルドを行うことができません。
 
-各種サービスを利用するためにはアクセストークンを取得し利用者の環境に登録する必要があります。アクセストークンとは、各種サービスの利用を認可する文字列のことで、ABCI の利用者は誰でも取得することができます。
+### アクセストークンの取得
 
-アクセストークンは、専用のコマンド ``get_singularity_token``を使用してインタラクティブノード、計算ノードおよびメモリインテンシブノードで取得可能です。発行には ABCI のパスワード (利用者ポータルへのログインに使用) の入力が必要です。
-以下にアクセストークンの発行例を示します。
+サービスの認証に必要なアクセストークンを取得し、SingularityPRO に登録します。ABCI の利用者は誰でも取得することができます。インタラクティブノードで `get_singularity_token` コマンドを実行します。計算ノードやメモリインテンシブノードでも実行できますが、発行には ABCI のパスワード (利用者ポータルへのログインに使用するパスワード) の入力が必要です。
+
 ```
 [username@es1 ~]$ get_singularity_token
-ABCI portal password :利用ポータルのパスワードを入力
+ABCI portal password :
 just a moment, please...
-アクセストークンの表示
 ```
-表示されたアクセストークンは後で使用するためコピーなどで控えておきます。
+
+この後に続いて、アクセストークンが出力されます。後で登録する時に必要になりますので、安全なところに控えておきます。
 
 !!! note
-    アクセストークンは非常に長い１行の文字列のため、途中に改行などが入らないよう注意してください。
+    アクセストークンは、非常に長い１行の文字列で作られているため、途中に改行などが入らないよう注意してください。
 
-### Remote Endpoint の登録
+!!! warning
+    現時点では、一度発行したアクセストークン(後述)を無効化することはできません。
 
-次に、ABCI のリモートエンドポイントを追加します。リモートエンドポイントとは、singularity remote のサービス提供元となる接続先で、初期値として SylabsCloud (cloud.sylabs.io) が登録されています。
+### リモートエンドポイントの設定
+
+リモートビルドを行う時の接続先となる Remote Builder のエンドポイントを登録します。初期値として SylabsCloud (cloud.sylabs.io) が登録されています。
 
 !!! note
-    SylabsCloud は Sylabs 社が運営するサービスです。
+    SylabsCloud は [Sylabs](https://sylabs.io/) 社が運営するサービスです。そちらを使うこともできます。サービス内容については <https://cloud.sylabs.io/> をご確認ください。
 
-ABCI ではリモートエンドポイント `` cloud.se.abci.local `` を任意の登録名で追加します。以下は、登録名が ``abci-se`` の例です。``API Key: `` に上で発行したアクセストークンをコピーして貼り付けます。
+ABCI の Remote Builder は、`cloud.se.abci.local` です。以下は、`abci` という名前で登録する例です。名前は任意のものをつけることができます。
+
 ```
-[username@es1 ~]$ singularity remote add abci-se cloud.se.abci.local
-INFO:    Remote "abci-se" added.
-INFO:    Authenticating with remote: abci-se
+[username@es1 ~]$ singularity remote add abci cloud.se.abci.local
+INFO:    Remote "abci" added.
+INFO:    Authenticating with remote: abci
 Generate an API Key at https://cloud.se.abci.local/auth/tokens, and paste here:
-API Key:アクセストークンを入力（非表示）
-INFO:    API Key Verified!
-[username@es1 ~]$ 
+API Key: 
 ```
-!!! note
-    アクセストークンの貼り付けは、貼り付けた文字列が表示されないため不要な文字が混入しないよう注意してください。
 
-アクセストークンが適正と判定されると、```API Key Verified!``` が表示されます。登録したリモートエンドポイントは、以下コマンドで確認できます。
+`API Key:` と出力されたら、控えておいたアクセストークンをコピーして貼り付けます。
+
+!!! note
+    貼り付けた文字列は表示されないため、不要な文字が混入しないよう注意してください。
+
+アクセストークンが適正と判定されると、`API Key Verified!` と出力されます。登録したリモートエンドポイントは、以下コマンドで確認できます。
+
 ```
-$ [username@es1 ~]$ singularity remote list
-NAME         URI                  GLOBAL
+[username@es1 ~]$ singularity remote list
+NAME           URI                  GLOBAL
 [SylabsCloud]  cloud.sylabs.io      YES
-abci-se    cloud.se.abci.local  NO <- 追加されたリモートエンドポイント
+abci           cloud.se.abci.local  NO
 [username@es1 ~]$
 ```
 
-次に、デフォルトのままでは上記のように "[]" で囲まれた SylabsCloud すなわち Sylabs社のリモートエンドポイントを使用してしまうため、登録した ```abci-se``` に切り替えます。
+リモートビルドやアップロードの時には、`[]` で囲まれているものが使われます。上記の例では SylabsCloud を使う設定になっているため、登録した `abci` に切り替えます。
+
 ```
-[username@es1 ~]$ singularity remote use abci-se
-INFO:    Remote "abci-se" now in use.
+[username@es1 ~]$ singularity remote use abci
+INFO:    Remote "abci" now in use.
 ```
 
-abci-se が "[]" で囲まれたことを確認します。
+`abci` が "[]" で囲まれたことを `singularity remote list` で確認します。
+
 ```
 [username@es1 ~]$ singularity remote list
 NAME         URI                  GLOBAL
 SylabsCloud  cloud.sylabs.io      YES
-[abci-se]    cloud.se.abci.local  NO
+[abci]       cloud.se.abci.local  NO
 [username@es1 ~]$
 ```
 
-以上で、Remote Endpoint の登録は完了です。
+### リモートビルド
 
-### アクセストークンの更新
-
-アクセストークンを再発行した場合は、再度、登録したリモートエンドポイント (上の例では``abci-se``) にログインすることで更新されます。
-```
-[username@es1 ~]$ singularity remote login abci-se
-INFO:    Authenticating with remote: abci-se
-Generate an API Key at https://cloud.se.abci.local/auth/tokens, and paste here:
-API Key:
-INFO:    API Key Verified!
-[username@es1 ~]$
-```
-
-## Remote Builder の利用
-
-ここでは、singularity の Remote Builder サービスによるコンテナイメージの作成について説明します。
-
-以下の例では、Docker Hub から取得した Ubuntu のコンテナから Singularity イメージ (SIF) を作成しています。
-まず、def ファイルを作成します。
+ビルドする前に、定義ファイルを作ります。以下の例では、Docker Hub から取得した Ubuntu のコンテナイメージをベースとして、追加パッケージのインストールと、 `singularity run` で起動した場合に実行するコマンドを指定しています。定義ファイルの詳細については、[Definition Files](https://repo.sylabs.io/c/0f6898986ad0b646b5ce6deba21781ac62cb7e0a86a5153bbb31732ee6593f43/guides/singularitypro35-user-guide/definition_files.html) を参照してください。
 
 ```
 [username@es1 ~]$ vi ubuntu.def
 [username@es1 ~]$ cat ubuntu.def
 Bootstrap: docker
-From: ubuntu:16.04
+From: ubuntu:18.04
+
+%post
+    apt-get update
+    apt-get install -y lsb-release
 
 %runscript
-    echo "hello world from ubuntu container!" 
+    lsb_release -d
+
 [username@es1 ~]$ 
 ```
 
-次に、``--remote`` オプションをつけてコンテナをビルドします。
+`singularity build` コマンドに `--remote` を指定して、ubuntu.def の内容からコンテナイメージ ubuntu.sif をリモートビルドで作成します。
+
 ```
 [username@es1 ~]$ singularity build  --remote ubuntu.sif ubuntu.def
 INFO:    Remote "default" added.
@@ -124,63 +120,85 @@ INFO:    API Key Verified!
 INFO:    Remote "default" now in use.
 INFO:    Starting build...
 :
-(中略)
 :
 INFO:    Build complete: ubuntu.sif
 [username@es1 ~]$ 
 ```
 
-動作確認
+動作確認として `singularity run` でコンテナイメージを起動する例です。定義ファイルで指定した `lsb_release -d` が実行されて、その結果が出力されています。
+
 ```
-[username@es1 ~]$ qrsh -l rt_C.small=1 -g group
+[username@es1 ~]$ qrsh -g grpname -l rt_C.small=1 -l h_rt=1:00:00
 [username@g0001 ~]$ module load singularitypro/3.5
 [username@g0001 ~]$ singularity run ubuntu.sif
-hello world from ubuntu container!
+Description:	Ubuntu 18.04.5 LTS
+[username@g0001 ~]$ 
 ```
 
-## Keystore の利用
+### アクセストークンの再設定
 
-ここでは、Keystore サービスを説明します。
-Keystore サービスは ``singularity key newpair`` コマンドで作成したキーペアの公開鍵を ABCI 内で公開できるサービスです。コンテナイメージの作成者が、コンテナイメージの署名に使用した公開鍵を Keystore に登録することで、別の利用者が Library サービスから取得したコンテナイメージを公開鍵で検証することが可能になります。
+アクセストークンを再発行した場合は、`singularity remote login` を実行して新しいアクセストークンを設定してください。既存のアクセストークンは上書きされます。
 
-### キーペアの発行
+```
+[username@es1 ~]$ singularity remote login abci
+INFO:    Authenticating with remote: abci
+Generate an API Key at https://cloud.se.abci.local/auth/tokens, and paste here:
+API Key:
+INFO:    API Key Verified!
+[username@es1 ~]$
+```
 
-``singularity key newpair``で作成したキーペアは、利用者のローカル環境で、キーリストに追加されます。作成時に Keystore への push  を選択した場合は、作成時に Keystore に push まで実行されます。キーペアの発行には、以下表に示す値を入力します。
+## Container Library サービスの利用
+
+Container Library サービスにコンテナイメージをアップロードすると、他の ABCI 利用者もダウンロードして利用できるようになります。ABCI 内でイメージを公開したい場合などに使えます。
+
+### 仕様と制約事項
+
+* アップロードしたコンテナイメージは、ABCI 内部からダウンロードできるようになり、アクセス制御の設定はできません(ABCI のユーザーであれば誰でもアクセスできることを意味します)
+* 1人あたり合計 100GiB まで保存することができます
+* 現時点では、自分が所有するアップロードしたコンテナイメージの一覧を取得することはできません
+* 現時点では、64MiB以上のコンテナイメージをアップロードすることはできません(リモートビルドでコンテナイメージを作成することはできます)
+
+### Keystore サービス
+
+Container Library サービスを利用するに先立ち、公開鍵を ABCI 内に公開するための Keystore サービスの使い方を説明します。コンテナイメージの作成者が、コンテナイメージの署名に使用した鍵の公開鍵を Keystore に登録することで、別の利用者が Container Library サービスから取得したコンテナイメージの署名を検証することが可能になります。
+
+#### キーペアの作成
+
+`singularity key newpair` でキーペアを作成します。
+
+```
+[username@es1 ~]$ singularity key newpair
+Enter your name (e.g., John Doe) : 
+Enter your email address (e.g., john.doe@example.com) : 
+Enter optional comment (e.g., development keys) : 
+Enter a passphrase : 
+Retype your passphrase :
+Would you like to push it to the keystore? [Y,n] 
+Generating Entity and OpenPGP Key Pair... done
+```
+
+各入力値の説明は以下のとおりです。
 
 | 項目 | 入力値 |
 | :-- | :-- |
-| Enter your name | ABCIアカウント名 |
-| Enter your email address | ABCI アカウント |
-| Enter optional comment | 任意の文字列 |
-| Enter a passphrase | キーのパスフレーズ |
-| Would you like to push it to the keystore? | 公開鍵をKeystore に push する場合 'Y' を選択|
+| Enter your name | ABCIアカウント名を入力してください |
+| Enter your email address | email address となっていますが、ABCIアカウント名を入力してください |
+| Enter optional comment | このキーペアにつけておきたい任意のコメントを入力します |
+| Enter a passphrase | パスフレーズを決めて入力してください。コンテナイメージを署名する時などに必要になります |
+| Would you like to push it to the keystore? | 公開鍵を Keystore にアップロードする場合は `Y` を入力してください |
 
+#### キーの一覧表示
 
-以下に例を示します。ここでは、キーのコメントを sample としています。
-```
-[username@es1 ~]$ singularity key newpair
-Enter your name (e.g., John Doe) : ABCI アカウント名
-Enter your email address (e.g., john.doe@example.com) : ABCIアカウント名
-Enter optional comment (e.g., development keys) : sample <- 任意の文字列
-Enter a passphrase : <- キーのパスフレーズを入力（非表示）
-Retype your passphrase :
-Would you like to push it to the keystore? [Y,n] Y <- Keystore にpush する場合 'Y'
-Generating Entity and OpenPGP Key Pair... done
-Key successfully pushed to: https://keys.se.abci.local
-```
+`singularity key list` を実行すると、作成したキーの情報を確認できます。
 
-### キーの一覧表示
-
-作成したキーは、リスト表示で確認ができます。
-ローカルのキーリストは以下のようにして確認します。
 ```
 [username@es1 ~]$ singularity key list
-Public key listing (/home/ABCIアカウント名/.singularity/sypgp/pgp-public):
+Public key listing (/home/username/.singularity/sypgp/pgp-public):
 :
-(中略)
 :
    --------
-7) U: ABCIアカウント名 (sample) <ABCIアカウント名>
+7) U: username (comment) <username>
    C: 2020-06-15 03:40:05 +0900 JST
    F: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
    L: 4096
@@ -188,33 +206,38 @@ Public key listing (/home/ABCIアカウント名/.singularity/sypgp/pgp-public):
 [username@es1 ~]$
 ```
 
-Keystore に push したキーは、以下のように確認することができます。
+Keystore にアップロードしたキーの情報を取得するには、`singularity key search -l` に ABCI ユーザー名を指定します。
 
 ```
-[username@es1 ~]$ singularity key search -l ABCIアカウント名
+[username@es1 ~]$ singularity key search -l username
 Showing 1 results
 
 FINGERPRINT                               ALGORITHM  BITS  CREATION DATE                  EXPIRATION DATE  STATUS     NAME/EMAIL
-YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY  RSA        4096  2020-06-15 03:40:05 +0900 JST  [ultimate]       [enabled]  ABCIアカウント名 (sample) <ABCIアカウント名>
+YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY  RSA        4096  2020-06-15 03:40:05 +0900 JST  [ultimate]       [enabled]  username (comment) <username>
 
 [username@es1 ~]$
 ```
 
-### Keysotre への push
+#### Keystore へ公開鍵を登録する
 
-ローカルのキーリストに保存されているキーは、フィンガープリントを指定して Keystore に push することができます。
+キーペアの作成時に、Keystore へのアップロードを指定しなかった場合、あとからアップロードすることもできます。
 
-!!! note
-    Keystore に push したキーは削除することができません。
+!!! warning
+    Keystore に登録した公開鍵を削除することはできません。
 
 ```
 [username@es1 ~]$ singularity key list
-0) U: ABCIアカウント名 (test key 03) <ABCIアカウント名>
+0) U: username (comment) username
    C: 2020-08-08 04:28:35 +0900 JST
-   F: ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ <- push するキーのフィンガープリント
+   F: ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ
    L: 4096
    --------
 
+```
+
+この 0 番のキーをアップロードするには、`F:` のところに表示されているフィンガープリントを `singularity key push` に指定します。
+
+```
 [username@es1 ~]$ singularity key push ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ
 public key `ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ' pushed to server successfully
 
@@ -222,25 +245,24 @@ public key `ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ' pushed to server successfu
 Showing 1 results
 
 FINGERPRINT                               ALGORITHM  BITS  CREATION DATE                  EXPIRATION DATE  STATUS     NAME/EMAIL
-ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ  RSA        4096  2020-06-15 03:40:05 +0900 JST  [ultimate]       [enabled]  ABCIアカウント名 (sample) <ABCIアカウント名>
+ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ  RSA        4096  2020-06-15 03:40:05 +0900 JST  [ultimate]       [enabled]  username (comment) <username>
 ```
 
-### Keysotre から pull 
+#### Keysotre から公開鍵を取得する
 
-Keystore で公開されているキーは、自分のローカルのキーリストに pull して保存することが可能です。以下の例では、WORD で検索してヒットしたキーを pull しています。
-```
-[username@es1 ~]$ $ singularity key search -l WORD
+Keystore に登録されているキーは、ダウンロードして自分のキーリングに保存することができます。以下の例では、username2 で検索してヒットしたキーを保存しています。鍵につけられたコメントにマッチする文字列で探すこともできます。
+
+```bash hl_lines="1 7"
+[username@es1 ~]$ singularity key search -l username2
 Showing 2 results
 
 FINGERPRINT                               ALGORITHM  BITS  CREATION DATE                  EXPIRATION DATE  STATUS     NAME/EMAIL
-ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ  RSA        4096  2020-06-15 03:40:05 +0900 JST  [ultimate]       [enabled]  ABCIアカウント名 (sample) <ABCIアカウント名>
-
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA  RSA        4096  2020-06-22 11:51:45 +0900 JST  [ultimate]       [enabled]  ABCIアカウント名 (WORD) <ABCIアカウント名>
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA  RSA        4096  2020-06-22 11:51:45 +0900 JST  [ultimate]       [enabled]  username2 (comment) <username2>
 
 [username@es1 ~]$ singularity key pull AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-1 key(s) added to keyring of trust /home/ABCIアカウント名/.singularity/sypgp/pgp-public
+1 key(s) added to keyring of trust /home/username/.singularity/sypgp/pgp-public
 [username@es1 ~]$ singularity key list
-1) U: ABCIアカウント (WORD) <ABCIアカウント>
+1) U: username2 (comment) <username2>
    C: 2020-08-10 11:51:45 +0900 JST
    F: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
    L: 4096
@@ -248,55 +270,62 @@ AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA  RSA        4096  2020-06-22 11:51:45 +
 [username@es1 ~]$
 ```
 
-### キーの削除
+#### キーの削除
 
-作成したキーは、キーのフィンガープリントを指定して、削除することができます。なお、削除可能なキーはローカルのキーリストからのみで、Keystore に push したキーは削除することができません。
+作成したキーやダウンロードして保存したキーは、`singularity key remove` にキーのフィンガープリントを指定して、削除することができます。Keystore 上に保存されているキーを削除することができません。
 
 ```
 [username@es1 ~]$ singularity key remove AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-[username@es1 ~]$
 ```
 
-## Library の利用
+### コンテナイメージのアップロード
 
-ここでは、Singularity Enterprise の Library サービスについて説明します。Library サービスでは、利用者がコンテナイメージを ABCI 内で公開することが可能です。公開されたコンテナイメージは、利用者がジョブの中で pull して計算ノードで利用したり、他利用者も pull して利用することが可能になります。
+Container Library サービスにおけるコンテナイメージの場所は、`library://ABCIアカウント名/コレクション名/コンテナイメージ名:タグ` のような URI で表されます。
 
-Library 上のコンテナイメージのパスは、``library://ABCIアカウント名`` を固定として以下のような URL で示されます。
+ABCIアカウント名以外の構成要素は以下のとおりです。
 
-```
-library://ABCIアカウント名/コレクション名/コンテナ名:tag
-```
-ここで、パスの構成は以下表のようになります。
-
-| 項目 | 入力値 |
+| 項目名 | 値 |
 | :-- | :-- |
-| コレクション名 | コレクション名を任意の文字列で指定 |
-| コンテナ名 | コンテナ名を任意の文字列で指定 |
-| tag | 同名コンテナのバージョンの指定 |
+| コレクション名 | コレクション名を任意の文字列で指定します |
+| コンテナイメージ名 | コンテナイメージ名を任意の文字列で指定します |
+| タグ | 同じコンテナイメージを識別するための文字列で、バージョンやリリース日、リビジョン番号や `latest` などの文字列でも構いません |
 
-### Library への push
+Container Library にアップロードする前に、コンテナイメージに署名します。
+`singularity key list` で使う鍵の番号を確認し、`singularity sign` で署名します。
+以下の例では 2 番の鍵を使用して、`ubuntu.sif` へ署名しています。`-k` オプションで鍵の番号を指定してください。
 
-Library にコンテナイメージをプッシュするためには、まず、キーリストに登録されたキーで署名します。
-``-k`` で指定している数値は、``singularity key list`` で表示されるキーリストの番号です。
-```
-[username@es1 ~]$ singularity sign -k 7 ./ubuntu.sif
+```bash hl_lines="1 11"
+[username@es1 ~]$ singularity key list
+Public key listing (/home/username/.singularity/sypgp/pgp-public):
+:
+:
+   --------
+2) U: username (comment) <username>
+   C: 2020-06-15 03:40:05 +0900 JST
+   F: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+   L: 4096
+   --------
+[username@es1 ~]$ singularity sign -k 2 ./ubuntu.sif
 Signing image: ./ubuntu.sif
-Enter key passphrase : <- キー作成時のパスフレーズを入力する。
+Enter key passphrase : 
 Signature created and applied to ./ubuntu.sif
 ```
 
-コレクション名をabci-test-se, push 先のコンテナイメージ名を helloworld.sif また、tag として latest を指定した例を以下に示します。
+コレクション名を `abci-lib`、 コンテナイメージ名を `helloworld`、タグとして `latest` を指定した例を以下に示します。
+
 ```
-[username@es1 ~]$ singularity push ubuntu.sif library://ABCIアカウント名/abci-se-test/helloworld:latest
+[username@es1 ~]$ singularity push ubuntu.sif library://username/abci-lib/helloworld:latest
 INFO:    Container is trusted - run 'singularity key list' to list your trusted keys
  35.36 MiB / 35.36 MiB [===========================================================================================================================================================================================================] 100.00% 182.68 MiB/s 0s
 [username@es1 ~]$
 ```
-### Library から pull
 
-Libraryに登録したコンテナは以下のようにして pull が可能です。
+### コンテナイメージのダウンロード
+
+Container Library に登録されているコンテナイメージは、以下のようにダウンロードできます。
+
 ```
-[username@es1 ~]$ singularity pull library://ABCIアカウント名/abci-se-test/helloworld:latest
+[username@es1 ~]$ singularity pull library://username/abci-lib/helloworld:latest
 INFO:    Downloading library image
  35.37 MiB / 35.37 MiB [=============================================================================================================================================================================================================] 100.00% 353.47 MiB/s 0s
 INFO:    Container is trusted - run 'singularity key list' to list your trusted keys
@@ -304,13 +333,9 @@ INFO:    Download complete: helloworld_latest.sif
 [username@es1 ~]$
 ```
 
-この例では、以下のようにコンテナイメージに署名したキーがローカルのキーリストに格納済みのため、コンテナイメージをダウンロードするときに自動的に検証が行われています。
+この例では、署名したキーの公開鍵がローカルのキーリングに入っているため、自動的に検証が行われ、`Container is trusted` と出力されています。
 
-```
-INFO:    Container is trusted - run 'singularity key list' to list your trusted keys
-```
-
-ローカルのキーリストに公開鍵が格納されていない場合は、対象のキーを pull しローカルのキーリストに追加するか、または、``singularity verify`` コマンドで検証が可能です。``singularity verify`` コマンドでの検証は以下のようになります。
+ローカルのキーリングに公開鍵が格納されていない場合は、Keystore からダウンロードして追加するか、または、`singularity verify` コマンドで検証することができます。
 
 ```
 [username@es1 ~]$ singularity verify helloworld_latest.sif
@@ -318,50 +343,34 @@ Container is signed by 1 key(s):
 
 Verifying partition: FS:
 BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
-[REMOTE]   ABCIアカウント名 (COMMENT) <ABCIアカウント名> -> Keystoreで公開鍵を発見
-[OK]      Data integrity verified  -> 検証に成功
+[REMOTE]  username (comment) <username>
+[OK]      Data integrity verified
 
 INFO:    Container verified: helloworld_latest.sif
 ```
 
 !!! note
-    検証に失敗する場合でもコンテナイメージの実行は可能ですが、検証可能なコンテナイメージの使用を推奨します
+    検証に失敗した場合でもコンテナイメージを実行することはできますが、検証可能なコンテナイメージの使用を推奨します。
 
-### Library 内の検索
-Libraryに登録したコンテナをキーワードで検索ができます。
+### コンテナイメージの検索
 
-ABCIアカウントにヒットした場合の例：
-```
-[username@es1 ~]$ singularity search ABCIアカウント名1
-Found 1 users for 'ABCIアカウント名1'
-	library://ABCIアカウント名1
-```
-
-コンテナ名にヒットした場合の例：
+Container Library に登録したコンテナをキーワードで検索することができます。
 
 ```
-[username@es1 ~]$ singularity search ubuntu
-No users found for 'ubuntu'
+[username@es1 ~]$ singularity search hello
+No users found for 'hello'
 
-No collections found for 'ubuntu'
+No collections found for 'hello'
 
-Found 1 containers for 'ubuntu'
-	library://axa01001hf/exam-honban/ubuntu-test.sif
+Found 1 containers for 'hello'
+	library://username/abci-lib/helloworld
 		Tags: latest
 ```
 
 ### コンテナイメージの削除
-Library サービスに push したコンテナイメージは、以下のようにして削除が可能です。
+
+Container Library サービスに push したコンテナイメージは、`singularity delete` で削除することができます。
 
 ```
-[username@es1 ~]$ singularity delete library://ABCIアカウント名/abci-se-test/helloworld:latest
+[username@es1 ~]$ singularity delete library://username/abci-lib/helloworld:latest
 ```
-
-!!! caution
-    現在、singularity の不具合により ``singularity delete`` コマンドが正常動作しません。以下代替コマンドでコンテナイメージの削除をお願いします。
-
-``singularity delete`` の代替コマンド
-```
-singularity delete --arch amd64  --library https://library.se.abci.local/  library://abci-se-test/helloworld:latest
-```
-
